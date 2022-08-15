@@ -1,0 +1,325 @@
+---
+title: "Wrangling Tidyverse"
+format: html
+editor: visual
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(tidyverse)
+library(here)
+library(janitor)
+library(ggthemr)
+```
+
+# Read in World Bank data Files
+
+```{r}
+wb_indicators <- read_csv(here::here("data", "wb_indicators.csv"), na = c("..", ""))
+head(wb_indicators) 
+## na values are ".. " and also  go back and read in na, can give it a vector of any missing cells ex. "missing", "n/a". "Na", "na"....
+
+wb_metadata <- read_csv(here::here("data", "wb_indicators_metadata.csv"))
+
+
+```
+
+# Tidy up data
+
+1.  **`Pivot_Longer`** to get years into a single column\]
+
+    ```{r}
+    wb_indicators_long <- wb_indicators |>
+      pivot_longer(
+        cols = "2001 [YR2001]":"2020 [YR2020]",
+        names_to = "year",
+        values_to = "indicator_value") 
+    # names(vector) quick acces 
+    # single colon, can also index -> cols = -(1:4)
+
+    ```
+
+    1.  **`SEPERATE()`** to clean up Year column
+
+    2.  `dplyr::select()` column cleanup
+
+    3.  `mutate()` to convert year from chr to numeric,
+
+    4.  `drop_na` does this variable contain an NA if so drop that row , can use `unique()` on column,
+
+    5.  `pivot_wider`
+
+    6.  Can't pipe into `names` , can also use `rename()`
+
+        ```{r}
+        # wb_clean <- wb_indicators_long |>
+        #   separate(col = year,
+        #            into = c("year", "year_chr"),
+        #            sep = " ") |>
+        #   select(-year_chr, -'Country Code', -'Series Code')  |>
+        #   mutate(year =  as.numeric(year)) |>
+        #   drop_na('Series Name') |>
+        #   pivot_wider(names_from = 'Series Name', values_from = indicator_value) 
+        # 
+        # names(wb_clean) <- c("country", 'year', "access_clean_fuels_pp", "access_electricity_pp", "co2_emissions_kt", "fossil_fuel_cons_pct", "water_stress")
+        # 
+        # 
+        # #PIVOT WIDER widen the variables currently trapped in 'series name' to be spread across multiple columns, and get the values that populated the columns
+        # 
+        # wb_subset <- wb_clean |>
+        #   filter(country %in% c("Algeria", "Barbados", "Bulgaria", "Chile"))
+        # 
+        # 
+        # ggplot(data = wb_subset, aes(x = year, y = co2_emissions_kt)) + 
+        #   geom_line(aes(color = country)) + facet_wrap(~country)
+        # 
+        # 
+        # #unique(wb_subset$country) # checking acccuracy of subset
+        # head(wb_clean)
+        ```
+
+```{r}
+wb_clean <- wb_indicators_long |>
+  separate(col = year,
+           into = c("year", "year_chr"),
+           sep = " ") |>
+  select(-year_chr, -'Country Code', -'Series Code')  |>
+  mutate(year =  as.numeric(year)) |>
+  drop_na('Series Name') |>
+  pivot_wider(names_from = 'Series Name', values_from = indicator_value)
+
+names(wb_clean) <- c("country", 'year', "access_clean_fuels_pp", "access_electricity_pp", "co2_emissions_kt", "fossil_fuel_cons_pct", "water_stress")
+
+wb_subset <- wb_clean |> filter(country %in% c("Algeria", "Barbados", "Bulgaria", "Chile"))
+
+ggthemr("earth", type = "outer")
+ggplot(data = wb_subset, aes(x = year, y = co2_emissions_kt)) + geom_line(aes(color = country)) + facet_wrap(~country)
+```
+
+# Filetering Rows
+
+Example 1 Filter to only keep exact matches(rows)
+
+```{r}
+head(starwars)
+ex_1 <- starwars |> 
+  filter(height > 180) 
+
+min(ex_1$height) # check
+head(ex_1)
+```
+
+```{r}
+ex_2 <- starwars |> 
+  filter(eye_color == "blue")
+
+unique(ex_2$eye_color) # check
+```
+
+```{r}
+# make a subset that only contains rows where the homeworld is Naboo
+
+ex_3 <- starwars |> 
+  filter(homeworld == "Naboo")
+
+head(ex_3)
+```
+
+Multiple things to be true for a row to be kept
+
+```{r}
+ex_4 <- starwars |> 
+  filter(height > 182 & homeworld == "Tatooine")
+
+head(ex_4)
+```
+
+```{r}
+ex_5 <- starwars |> 
+  filter(hair_color == "brown" & species == "Human")
+
+head(ex_5)
+```
+
+# Filtering 'OR' Statements
+
+```{r}
+ex_6 <- starwars |> 
+  filter(height > 180 | eye_color == "yelllow")
+
+head(ex_6)
+```
+
+```{r}
+ex_7 <- starwars |> 
+  filter(homeworld == "Endor" | species == "Droid")
+head(ex_7)
+```
+
+```{r}
+ex_8 <- starwars |> 
+  filter(eye_color == "blue" | eye_color == 'brown' | eye_color == 'red')
+
+ex_9 <-starwars |> 
+  filter(eye_color %in% c("blue", "brown", "red"))
+head(starwars)
+
+```
+
+```{r}
+ex_10 <- starwars |>
+  filter(homeworld  %in%
+           c("Endor", "Tatooine", "Naboo"),
+         height < 150)
+
+head(ex_10)
+
+```
+
+```{r}
+ex_12 <- starwars |> 
+  filter(species != "Human")
+
+ex_13 <- starwars |> 
+  filter(!species %in% c("Human", "Ewok", "Wookiee"))
+```
+
+# `Select()`: select or exclude columns
+
+Select by name
+
+```{r}
+ex_14 <- wb_clean |> 
+  select(country, year, co2_emissions_kt)
+head(ex_14)
+
+ex_15 <- wb_clean |> 
+  select(year:fossil_fuel_cons_pct) # range by name
+
+head(ex_15)
+
+ex_16 <- wb_clean |> 
+  select(year:fossil_fuel_cons_pct, -access_electricity_pp) # exclude a single column
+
+head(ex_16)
+```
+
+```{r}
+ex_17 <- wb_clean |> 
+  filter(country %in% c ("Bolivia", "Chile", "Mexico")) |> 
+  select(country:fossil_fuel_cons_pct)
+unique(ex_17$country)
+names(ex_17)
+head(ex_17)
+```
+
+```{r}
+ex_18 <- wb_clean |> 
+  select(year_new = year,
+         emissions = co2_emissions_kt,
+         country_name = country)
+
+head(ex_18)
+```
+
+Select only columns for country, year and water stress and reorder them as year, country water stress, then filter to only include observations for any three countries of your choosing
+
+```{r}
+ex_19 <- wb_clean |> 
+  select(year, country, water_stress) |> 
+  filter(country %in% c("Australia", "Aruba", "Lebanon"))
+
+unique(ex_19$country)
+```
+
+# `rename(new_name = old_name)`
+
+```{r}
+ex_20 <- wb_clean |> 
+  rename(ffcp = fossil_fuel_cons_pct,
+         ws = water_stress)
+names(ex_20)
+
+ex_21 <- wb_clean |> 
+  rename(aep = access_electricity_pp,
+         Nation = country)
+names(ex_21)
+```
+
+# `Mutate()` : update an existing column, or add a new one
+
+If you assign a NEW column name , it will add a new column to end of your data frame. If you assign an existing column name, it will overwrite that column
+
+```{r}
+ex_22 <- wb_clean |> 
+  mutate(co2_emissions_t = co2_emissions_kt * 1000) |> relocate(co2_emissions_t, .after = co2_emissions_kt)
+head(ex_22)
+
+head(ex_22$co2_emissions_t)
+ex_23 <- wb_clean |> 
+  mutate(yay = "YAY")
+head(ex_23$yay)
+
+ex_24 <- wb_clean |> 
+  mutate(year = as.character(year))
+class(ex_24$year)
+ex_25 <- ex_24 |> 
+  mutate(year = as.numeric(year))
+class(ex_25$year)
+```
+
+```{r}
+ex_26 <- wb_clean |> 
+  relocate(water_stress, .after = year)
+```
+
+# `group_by()`
+
+summarize apply your functions to EACH GROUP
+
+```{r}
+ex_27 <- starwars |> 
+  filter(homeworld %in% c("Naboo", "Tattoiine")) |> 
+  group_by(species) |> 
+  summarize(mean_height = mean(height , na.rm = TRUE),
+            mean_mass = mean(mass, na.rm = TRUE))
+```
+
+```{r}
+# count counts observations
+# combination of group_by summarize n()
+
+starwars |> 
+  count(homeworld, species)
+
+starwars |> 
+  group_by(homeworld, species) |> 
+  summarize(size = n(),
+            mean_height = mean(height, na.rm = TRUE))
+```
+
+# Practice example
+
+-   Start from wb_clean
+-   Only keep observations for Nicaragua, Ecuador, Peru, and Chile, AND for years greater than 2005
+-   Only keep columns for country, year and co2 emissions,
+-   add a new column that is co2 emissions converted to megatons
+-   find the total co2 emissions in megatons for years still in the dataset by country
+
+```{r}
+
+practice_ex <- wb_clean |> 
+  filter(country %in% c("Nicaragua", "Ecuador","Peru", "Chile"),
+         year > 2005) |> 
+  select(country, year, co2_emissions_kt) |> 
+  mutate(co2_emissions_mt = co2_emissions_kt / 1000) |> # good place to stop wrangling sequence
+  group_by(country) |> 
+  summarize(tot_co2 = sum(co2_emissions_mt, na.rm = TRUE))
+
+
+
+unique(practice_ex$country)
+min(practice_ex$year)
+head(practice_ex)
+```
